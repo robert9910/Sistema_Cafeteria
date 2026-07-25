@@ -2,15 +2,14 @@
 -- 0002_rls.sql
 -- Row Level Security.
 --
--- Modelo de acceso:
---   - Clientes (anon/authenticated sin fila en staff_users): solo pueden leer
---     el catálogo público (products) y crear/leer pedidos.
---   - Staff (fila en staff_users): acceso completo a todo.
+-- Modelo de acceso: la app es de uso exclusivo del staff (no hay clientes
+-- anónimos). Todo requiere una fila en staff_users; sin sesión, RLS no deja
+-- leer ni escribir nada.
 --
 -- La creación de pedidos y el cambio de estado se hacen a través de las
 -- funciones RPC definidas en 0003_order_functions.sql (SECURITY DEFINER),
--- no con INSERT/UPDATE directos desde el cliente. Esto evita que un cliente
--- manipule precios, stock o el total del pedido.
+-- no con INSERT/UPDATE directos. Esto evita que el precio, el stock o el
+-- total del pedido se manipulen desde el navegador.
 -- ============================================================================
 
 alter table staff_users enable row level security;
@@ -39,18 +38,11 @@ create policy staff_users_select_own on staff_users
   for select using (id = auth.uid());
 
 -- ---------------------------------------------------------------------------
--- products: catálogo público en lectura; escritura solo staff.
+-- products / ingredients / recipes: información interna, solo staff.
 -- ---------------------------------------------------------------------------
 
-create policy products_select_public on products
-  for select using (true);
-
-create policy products_write_staff on products
+create policy products_all_staff on products
   for all using (fn_is_staff()) with check (fn_is_staff());
-
--- ---------------------------------------------------------------------------
--- ingredients / recipes: información interna, solo staff.
--- ---------------------------------------------------------------------------
 
 create policy ingredients_all_staff on ingredients
   for all using (fn_is_staff()) with check (fn_is_staff());
@@ -59,19 +51,20 @@ create policy recipes_all_staff on recipes
   for all using (fn_is_staff()) with check (fn_is_staff());
 
 -- ---------------------------------------------------------------------------
--- orders / order_items: lectura pública (para que el cliente vea el estado
--- de su propio pedido en tiempo real desde /mesa/[mesa]); toda escritura pasa
--- por funciones RPC, así que no hay policies de insert/update para anon.
+-- orders / order_items: lectura solo staff (para barra, dashboard, y el
+-- realtime de "nuevo pedido"). La creación pasa por fn_create_order y el
+-- cambio de estado por fn_update_order_status, así que no hay policies de
+-- insert/update aquí.
 -- ---------------------------------------------------------------------------
 
-create policy orders_select_public on orders
-  for select using (true);
+create policy orders_select_staff on orders
+  for select using (fn_is_staff());
 
 create policy orders_write_staff on orders
   for update using (fn_is_staff()) with check (fn_is_staff());
 
-create policy order_items_select_public on order_items
-  for select using (true);
+create policy order_items_select_staff on order_items
+  for select using (fn_is_staff());
 
 -- ---------------------------------------------------------------------------
 -- inventory_movements / stock_alerts: solo staff. Las filas del sistema

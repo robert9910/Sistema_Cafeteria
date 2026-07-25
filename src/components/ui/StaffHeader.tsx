@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 const LINKS = [
+  { href: "/barra/nuevo", label: "Nuevo pedido" },
   { href: "/barra", label: "Barra" },
   { href: "/inventario", label: "Inventario" },
   { href: "/dashboard", label: "Dashboard" },

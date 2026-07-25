@@ -1,15 +1,16 @@
 -- ============================================================================
 -- 0003_order_functions.sql
--- Lógica de negocio como funciones SECURITY DEFINER. Los clientes nunca
--- insertan/actualizan orders, order_items o ingredients directamente: todo
+-- Lógica de negocio como funciones SECURITY DEFINER. El staff nunca
+-- inserta/actualiza orders, order_items o ingredients directamente: todo
 -- pasa por aquí, así el servidor de Postgres controla precios, transiciones
 -- de estado y el descuento de stock (con locking a nivel de fila para que
 -- pedidos concurrentes no descuadren el inventario).
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- fn_create_order: crea un pedido a partir de items {product_id, cantidad}.
--- El precio se toma del catálogo en este momento (no lo envía el cliente).
+-- fn_create_order: el barista crea un pedido a partir de items
+-- {product_id, cantidad}. El precio se toma del catálogo en este momento
+-- (no lo envía el cliente). Solo staff.
 -- ----------------------------------------------------------------------------
 
 create function fn_create_order(p_mesa integer, p_items jsonb)
@@ -25,6 +26,10 @@ declare
   v_cantidad integer;
   v_total numeric(10, 2) := 0;
 begin
+  if not fn_is_staff() then
+    raise exception 'No autorizado';
+  end if;
+
   if p_items is null or jsonb_array_length(p_items) = 0 then
     raise exception 'El pedido debe tener al menos un producto';
   end if;
@@ -67,7 +72,7 @@ begin
 end;
 $$;
 
-grant execute on function fn_create_order(integer, jsonb) to anon, authenticated;
+grant execute on function fn_create_order(integer, jsonb) to authenticated;
 
 -- ----------------------------------------------------------------------------
 -- fn_update_order_status: cambia el estado de un pedido. Solo staff.
